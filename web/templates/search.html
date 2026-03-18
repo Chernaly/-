@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}搜索 - 知识管理系统{% endblock %}
+
+{% block content %}
+<div class="search-page">
+    <h1><i class="fas fa-search"></i> 文档搜索</h1>
+
+    <div class="search-box">
+        <input type="text" id="search-input" placeholder="输入搜索关键词或问题..." autocomplete="off">
+        <div class="search-options">
+            <select id="search-method">
+                <option value="hybrid">混合搜索</option>
+                <option value="keyword">关键词搜索</option>
+                <option value="semantic">语义搜索</option>
+            </select>
+            <input type="text" id="tag-filter" placeholder="标签过滤（逗号分隔）">
+            <button onclick="performSearch()" class="btn-primary">
+                <i class="fas fa-search"></i> 搜索
+            </button>
+        </div>
+    </div>
+
+    <div id="search-results" class="search-results"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function performSearch() {
+    const query = document.getElementById('search-input').value;
+    if (!query.trim()) {
+        alert('请输入搜索内容');
+        return;
+    }
+
+    const method = document.getElementById('search-method').value;
+    const tags = document.getElementById('tag-filter').value;
+
+    const formData = new FormData();
+    formData.append('query', query);
+    formData.append('method', method);
+    formData.append('limit', 20);
+    if (tags) formData.append('tags', tags);
+
+    try {
+        document.getElementById('search-results').innerHTML =
+            '<div class="loading"><i class="fas fa-spinner fa-spin"></i> 搜索中...</div>';
+
+        const response = await fetch('/api/search', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await response.json();
+
+        displayResults(data);
+    } catch (error) {
+        document.getElementById('search-results').innerHTML =
+            '<div class="error">搜索失败：' + error.message + '</div>';
+    }
+}
+
+function displayResults(data) {
+    const container = document.getElementById('search-results');
+
+    if (data.results.length === 0) {
+        container.innerHTML = '<div class="empty-state"><i class="fas fa-search"></i><p>未找到相关文档</p></div>';
+        return;
+    }
+
+    let html = `
+        <div class="results-header">
+            <h3>找到 ${data.total} 个结果</h3>
+            <span class="search-meta">搜索方法: ${data.method}</span>
+        </div>
+        <div class="results-list">
+    `;
+
+    data.results.forEach((result, index) => {
+        html += `
+            <div class="result-card">
+                <div class="result-header">
+                    <h3>${result.title || '无标题'}</h3>
+                    <span class="result-score">相关度: ${(result.score * 100).toFixed(1)}%</span>
+                </div>
+                ${result.summary ? `<p class="result-summary">${result.summary}</p>` : ''}
+                ${result.tags ? `
+                    <div class="result-tags">
+                        ${result.tags.split(',').map(tag => `<span class="tag">${tag.trim()}</span>`).join('')}
+                    </div>
+                ` : ''}
+                <div class="result-meta">
+                    <span><i class="fas fa-file"></i> ${result.path}</span>
+                    <span class="search-method-tag">${result.search_method}</span>
+                </div>
+            </div>
+        `;
+    });
+
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+// 回车搜索
+document.getElementById('search-input').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') performSearch();
+});
+</script>
+{% endblock %}
